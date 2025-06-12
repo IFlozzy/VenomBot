@@ -4,13 +4,13 @@
   "description": "",
   "type": "module",
   "main": "index.js",
+  "private": true,
   "scripts": {
+    "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-  "node-telegram-bot-api": "^0.61.0",
-  "node-fetch": "^3.4.0"
-}
-
-  "private": true
+    "node-telegram-bot-api": "^0.61.0",
+    "node-fetch": "^3.4.0"
+  }
 }
