@@ -1,7 +1,7 @@
 // index.js
 import fetch from 'node-fetch';
 import Gate from './exchanges/Gate.js';
-import Bybit from '../untitled1dsgsdgds/Bybit.js';
+import Bybit from './exchanges/Bybit.js';
 import TelegramNotifier from './telegram/telegramNotifier.js';
 
 const FEE = 0.003; // Комісія для формули Uniswap V2
