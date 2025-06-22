@@ -1,23 +1,33 @@
-// src/exchanges/Bybit.js
 import fetch from 'node-fetch';
+import { SocksProxyAgent } from 'socks-proxy-agent';
 
 class Bybit {
     constructor() {
-        this.apiUrl = 'https://api.bytick.com/v5/market/orderbook';
+        this.apiUrl = 'https://api.bybit.com/v5/market/orderbook';
+        this.proxyUrl = null;
+    }
+
+    setProxy(proxyUrl) {
+        this.proxyUrl = proxyUrl;
     }
 
     async getOrderBook(pair) {
         const params = new URLSearchParams({
             category: 'spot',
             symbol: pair, // Формат: токен+USDT (без роздільників, великими літерами)
-            limit: '50'
+            limit: '100'
         });
+        const url = `${this.apiUrl}?${params.toString()}`;
+        console.info(`Bybit getOrderBook URL: ${url}`);
+
+        const options = {};
+        if (this.proxyUrl) {
+            options.agent = new SocksProxyAgent(this.proxyUrl);
+            console.info(`Bybit using proxy: ${this.proxyUrl}`);
+        }
+
         try {
-            const url = `${this.apiUrl}?${params.toString()}`;
-            console.info(`Bybit getOrderBook URL: ${url}`);
-                  const response = await fetch(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-      });
+            const response = await fetch(url, options);
             const data = await response.json();
             if (data.retCode !== 0) {
                 console.error('Помилка отримання ордербуку:', data.retMsg);
@@ -39,8 +49,8 @@ class Bybit {
         }
 
         const asks = orderbook.a; // ордери на продаж (сортуються за зростанням ціни)
-        let budget = usdtAmount;  // Бюджет для покупки (USDT)
-        let tokensBought = 0.0;   // Загальна кількість отриманих токенів (після комісії)
+        let budget = usdtAmount;
+        let tokensBought = 0.0;
 
         for (const ask of asks) {
             const price = parseFloat(ask[0]);
@@ -50,24 +60,18 @@ class Bybit {
             if (budget <= 0) break;
 
             if (budget >= costFull) {
-                // Купуємо весь рівень
-                const tokensPurchased = available;
-                const effectiveTokens = tokensPurchased * (1 - commissionRate); // токени після комісії
+                const effectiveTokens = available * (1 - commissionRate);
                 tokensBought += effectiveTokens;
                 budget -= costFull;
             } else {
-                // Купуємо лише ту частину рівня, яку дозволяє бюджет
                 const tokensToBuy = budget / price;
-                const effectiveTokens = tokensToBuy * (1 - commissionRate);
-                tokensBought += effectiveTokens;
+                tokensBought += tokensToBuy * (1 - commissionRate);
                 budget = 0;
                 break;
             }
         }
 
-        console.log(`Симуляція покупки:
-За ${usdtAmount} USDT отримано: ${tokensBought.toFixed(8)} токенів (з урахуванням комісії)
-Залишок бюджету: ${budget.toFixed(8)} USDT`);
+        console.log(`Симуляція покупки:\nЗа ${usdtAmount} USDT отримано: ${tokensBought.toFixed(8)} токенів (з урахуванням комісії)\nЗалишок бюджету: ${budget.toFixed(8)} USDT`);
 
         return {
             tokensBought,
@@ -84,40 +88,34 @@ class Bybit {
         }
 
         const bids = orderbook.b; // ордери на покупку (сортуються за спаданням ціни)
-        let usdtReceived = 0.0;  // Загальна кількість отриманих USDT (після комісії)
+        let usdtReceived = 0.0;
+        let tokensRemaining = tokensToSell;
 
         for (const bid of bids) {
             const price = parseFloat(bid[0]);
             const available = parseFloat(bid[1]);
 
-            if (tokensToSell <= 0) break;
+            if (tokensRemaining <= 0) break;
 
-            if (tokensToSell > available) {
-                // Продаємо весь доступний обсяг за цього рівня
-                const tokensSold = available;
-                const effectiveProceeds = tokensSold * price * (1 - commissionRate);
-                usdtReceived += effectiveProceeds;
-                tokensToSell -= tokensSold;
+            if (tokensRemaining > available) {
+                usdtReceived += available * price * (1 - commissionRate);
+                tokensRemaining -= available;
             } else {
-                // Продаємо решту токенів та завершуємо продаж
-                const tokensSold = tokensToSell;
-                const effectiveProceeds = tokensSold * price * (1 - commissionRate);
-                usdtReceived += effectiveProceeds;
-                tokensToSell = 0;
+                usdtReceived += tokensRemaining * price * (1 - commissionRate);
+                tokensRemaining = 0;
                 break;
             }
         }
 
-        if (tokensToSell > 0) {
-            console.warn("Попередження: не вистачає bid-ордерів для продажу всієї кількості токенів!");
+        if (tokensRemaining > 0) {
+            console.warn('Попередження: не вистачає bid-ордерів для продажу всієї кількості токенів!');
         } else {
-            console.log(`Симуляція продажу:
-Отримано USDT: ${usdtReceived.toFixed(8)} (з урахуванням комісії)`);
+            console.log(`Симуляція продажу:\nОтримано USDT: ${usdtReceived.toFixed(8)} (з урахуванням комісії)`);
         }
 
         return {
             usdtReceived,
-            tokensSold: tokensToSell
+            tokensSold: tokensToSell - tokensRemaining
         };
     }
 }
