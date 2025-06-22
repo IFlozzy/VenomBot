@@ -3,7 +3,7 @@ import fetch from 'node-fetch';
 
 class Bybit {
     constructor() {
-        this.apiUrl = 'https://api.bybit.com/v5/market/orderbook';
+        this.apiUrl = 'https://api.bytick.com/v5/market/orderbook';
     }
 
     async getOrderBook(pair) {
@@ -15,7 +15,9 @@ class Bybit {
         try {
             const url = `${this.apiUrl}?${params.toString()}`;
             console.info(`Bybit getOrderBook URL: ${url}`);
-            const response = await fetch(url);
+                  const response = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+      });
             const data = await response.json();
             if (data.retCode !== 0) {
                 console.error('Помилка отримання ордербуку:', data.retMsg);
